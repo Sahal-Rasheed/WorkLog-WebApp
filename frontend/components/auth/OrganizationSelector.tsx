@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Building2, Users, Plus, Mail, CheckCircle, Clock } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { api } from '../../utils/api';
+import { supabase } from '../../lib/supabase';
 import { CreateOrganizationForm } from './CreateOrganizationForm';
 import type { Organization, OrganizationSuggestion, Invitation } from '../../types';
 
@@ -32,21 +32,78 @@ export function OrganizationSelector({
   const { toast } = useToast();
 
   useEffect(() => {
-    checkEmailSuggestions();
+    loadSuggestions();
   }, [userEmail]);
 
-  const checkEmailSuggestions = async () => {
+  const loadSuggestions = async () => {
     try {
-      const response = await api.post<{
-        has_account: boolean;
-        suggested_organizations: OrganizationSuggestion[];
-        pending_invitations: Invitation[];
-      }>('/auth/check-email', { email: userEmail });
+      const emailDomain = userEmail.split('@')[1];
 
-      setSuggestions(response.suggested_organizations);
-      setInvitations(response.pending_invitations);
+      // Get suggested organizations (organizations with users from same domain)
+      const { data: orgSuggestions } = await supabase
+        .from('organization_members')
+        .select(`
+          organization_id,
+          organizations (
+            id,
+            name,
+            slug
+          ),
+          user_profiles!inner (
+            email
+          )
+        `)
+        .like('user_profiles.email', `%@${emailDomain}`)
+        .eq('status', 'active');
+
+      // Process suggestions
+      const orgCounts: Record<string, OrganizationSuggestion> = {};
+      
+      orgSuggestions?.forEach(item => {
+        const orgId = item.organizations.id;
+        if (!orgCounts[orgId]) {
+          orgCounts[orgId] = {
+            id: item.organizations.id,
+            name: item.organizations.name,
+            slug: item.organizations.slug,
+            member_count: 0,
+          };
+        }
+        orgCounts[orgId].member_count++;
+      });
+
+      const suggestions = Object.values(orgCounts).filter(org => org.member_count >= 2);
+
+      // Get pending invitations
+      const { data: pendingInvitations } = await supabase
+        .from('invitations')
+        .select(`
+          id,
+          token,
+          organizations (
+            name,
+            slug
+          ),
+          invited_by:user_profiles!invitations_invited_by_fkey (
+            name
+          )
+        `)
+        .eq('email', userEmail)
+        .is('accepted_at', null)
+        .gt('expires_at', new Date().toISOString());
+
+      const invitations: Invitation[] = pendingInvitations?.map(inv => ({
+        id: inv.id,
+        organization_name: inv.organizations.name,
+        organization_slug: inv.organizations.slug,
+        invited_by_name: inv.invited_by.name,
+        token: inv.token,
+      })) || [];
+
+      setSuggestions(suggestions);
+      setInvitations(invitations);
     } catch (error) {
-      console.error('Failed to check email suggestions:', error);
+      console.error('Failed to load suggestions:', error);
     } finally {
       setLoading(false);
     }
@@ -55,10 +112,16 @@ export function OrganizationSelector({
   const handleJoinOrganization = async (orgId: string) => {
     setJoiningOrg(orgId);
     try {
-      await api.post(`/organizations/join`, {
-        organization_id: orgId,
-        user_id: userId,
-      });
+      const { error } = await supabase
+        .from('organization_members')
+        .insert({
+          organization_id: orgId,
+          user_id: userId,
+          role: 'member',
+          status: 'pending',
+        });
+
+      if (error) throw error;
 
       toast({
         title: "Request Sent",
@@ -78,19 +141,63 @@ export function OrganizationSelector({
   const handleAcceptInvitation = async (token: string) => {
     setAcceptingInvite(token);
     try {
-      const response = await api.post<{
-        organization: Organization;
-      }>('/organizations/accept-invitation', {
-        token,
-        user_id: userId,
-      });
+      // Find the invitation
+      const { data: invitation } = await supabase
+        .from('invitations')
+        .select(`
+          *,
+          organizations (
+            id,
+            name,
+            slug
+          )
+        `)
+        .eq('token', token)
+        .is('accepted_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .single();
+
+      if (!invitation) {
+        throw new Error('Invalid or expired invitation');
+      }
+
+      // Add user to organization
+      const { error: memberError } = await supabase
+        .from('organization_members')
+        .insert({
+          organization_id: invitation.organization_id,
+          user_id: userId,
+          role: invitation.role,
+          status: 'active',
+          invited_by: invitation.invited_by,
+          invited_at: invitation.created_at,
+          joined_at: new Date().toISOString(),
+        });
+
+      if (memberError) throw memberError;
+
+      // Mark invitation as accepted
+      const { error: updateError } = await supabase
+        .from('invitations')
+        .update({ accepted_at: new Date().toISOString() })
+        .eq('id', invitation.id);
+
+      if (updateError) throw updateError;
 
       toast({
         title: "Welcome!",
-        description: `You've successfully joined ${response.organization.name}`,
+        description: `You've successfully joined ${invitation.organizations.name}`,
       });
 
-      onOrganizationSelected(response.organization);
+      const organization: Organization = {
+        id: invitation.organizations.id,
+        name: invitation.organizations.name,
+        slug: invitation.organizations.slug,
+        role: invitation.role,
+        status: 'active',
+      };
+
+      onOrganizationSelected(organization);
     } catch (error) {
       toast({
         title: "Error",

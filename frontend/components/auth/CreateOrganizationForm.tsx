@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Building2, AlertCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { api } from '../../utils/api';
+import { supabase } from '../../lib/supabase';
 import { validateOrganizationName } from '../../utils/validation';
 import type { Organization } from '../../types';
 
@@ -30,19 +30,62 @@ export function CreateOrganizationForm({ userId, onOrganizationCreated }: Create
 
     setLoading(true);
     try {
-      const response = await api.post<{
-        organization: Organization;
-      }>('/organizations', {
-        name: name.trim(),
-        user_id: userId,
+      // Generate slug
+      const { data: slug } = await supabase.rpc('generate_organization_slug', {
+        org_name: name.trim(),
       });
+
+      // Create organization
+      const { data: organization, error: orgError } = await supabase
+        .from('organizations')
+        .insert({
+          name: name.trim(),
+          slug,
+        })
+        .select()
+        .single();
+
+      if (orgError) throw orgError;
+
+      // Add user as admin
+      const { error: memberError } = await supabase
+        .from('organization_members')
+        .insert({
+          organization_id: organization.id,
+          user_id: userId,
+          role: 'admin',
+          status: 'active',
+          joined_at: new Date().toISOString(),
+        });
+
+      if (memberError) throw memberError;
+
+      // Create default project
+      const { error: projectError } = await supabase
+        .from('projects')
+        .insert({
+          organization_id: organization.id,
+          name: 'General',
+          description: 'Default project for general tasks',
+          created_by: userId,
+        });
+
+      if (projectError) throw projectError;
 
       toast({
         title: "Organization Created",
-        description: `${response.organization.name} has been created successfully!`,
+        description: `${organization.name} has been created successfully!`,
       });
 
-      onOrganizationCreated(response.organization);
+      const orgWithRole: Organization = {
+        id: organization.id,
+        name: organization.name,
+        slug: organization.slug,
+        role: 'admin',
+        status: 'active',
+      };
+
+      onOrganizationCreated(orgWithRole);
     } catch (error) {
       toast({
         title: "Error",

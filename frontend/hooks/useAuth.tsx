@@ -1,10 +1,13 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { api } from '../utils/api';
-import type { User, Organization, AuthState } from '../types';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
+import type { Organization, AuthState } from '../types';
 
 interface AuthContextType extends AuthState {
-  login: (email: string, name: string, avatarUrl?: string) => Promise<void>;
-  logout: () => void;
+  signUp: (email: string, password: string, name: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
+  signOut: () => Promise<void>;
+  updateProfile: (name: string, avatarUrl?: string) => Promise<void>;
   setCurrentOrganization: (org: Organization) => void;
   refreshOrganizations: () => Promise<void>;
 }
@@ -21,75 +24,149 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    // Load auth state from localStorage on mount
-    const savedUser = localStorage.getItem('worklog_user');
-    const savedOrganizations = localStorage.getItem('worklog_organizations');
-    const savedCurrentOrg = localStorage.getItem('worklog_current_organization');
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        handleUserSession(session.user);
+      } else {
+        setAuthState(prev => ({ ...prev, isLoading: false }));
+      }
+    });
 
-    if (savedUser) {
-      const user = JSON.parse(savedUser);
-      const organizations = savedOrganizations ? JSON.parse(savedOrganizations) : [];
-      const currentOrganization = savedCurrentOrg ? JSON.parse(savedCurrentOrg) : null;
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        await handleUserSession(session.user);
+      } else {
+        setAuthState({
+          user: null,
+          organizations: [],
+          currentOrganization: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+        localStorage.removeItem('worklog_current_organization');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleUserSession = async (user: User) => {
+    try {
+      // Get user profile
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      // Get user's organizations
+      const { data: memberships } = await supabase
+        .from('organization_members')
+        .select(`
+          role,
+          status,
+          organizations (
+            id,
+            name,
+            slug
+          )
+        `)
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+
+      const organizations: Organization[] = memberships?.map(m => ({
+        id: m.organizations.id,
+        name: m.organizations.name,
+        slug: m.organizations.slug,
+        role: m.role,
+        status: m.status,
+      })) || [];
+
+      // Get saved current organization
+      const savedCurrentOrg = localStorage.getItem('worklog_current_organization');
+      let currentOrganization = null;
+
+      if (savedCurrentOrg) {
+        const saved = JSON.parse(savedCurrentOrg);
+        currentOrganization = organizations.find(org => org.id === saved.id) || null;
+      }
+
+      if (!currentOrganization && organizations.length === 1) {
+        currentOrganization = organizations[0];
+      }
+
+      const userProfile = {
+        id: user.id,
+        email: user.email || '',
+        name: profile?.name || user.email || '',
+        avatar_url: profile?.avatar_url || user.user_metadata?.avatar_url,
+      };
 
       setAuthState({
-        user,
+        user: userProfile,
         organizations,
         currentOrganization,
         isAuthenticated: true,
         isLoading: false,
       });
-    } else {
-      setAuthState(prev => ({ ...prev, isLoading: false }));
-    }
-  }, []);
 
-  const login = async (email: string, name: string, avatarUrl?: string) => {
-    try {
-      const response = await api.post<{
-        user: User;
-        organizations: Organization[];
-        needs_organization_selection: boolean;
-      }>('/auth/login', {
-        email,
-        name,
-        avatar_url: avatarUrl,
-      });
-
-      const newAuthState = {
-        user: response.user,
-        organizations: response.organizations,
-        currentOrganization: response.organizations.length === 1 ? response.organizations[0] : null,
-        isAuthenticated: true,
-        isLoading: false,
-      };
-
-      setAuthState(newAuthState);
-
-      // Save to localStorage
-      localStorage.setItem('worklog_user', JSON.stringify(response.user));
-      localStorage.setItem('worklog_organizations', JSON.stringify(response.organizations));
-      if (newAuthState.currentOrganization) {
-        localStorage.setItem('worklog_current_organization', JSON.stringify(newAuthState.currentOrganization));
+      if (currentOrganization) {
+        localStorage.setItem('worklog_current_organization', JSON.stringify(currentOrganization));
       }
     } catch (error) {
-      console.error('Login failed:', error);
-      throw error;
+      console.error('Error handling user session:', error);
+      setAuthState(prev => ({ ...prev, isLoading: false }));
     }
   };
 
-  const logout = () => {
-    setAuthState({
-      user: null,
-      organizations: [],
-      currentOrganization: null,
-      isAuthenticated: false,
-      isLoading: false,
+  const signUp = async (email: string, password: string, name: string) => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name,
+        },
+      },
     });
 
-    // Clear localStorage
-    localStorage.removeItem('worklog_user');
-    localStorage.removeItem('worklog_organizations');
-    localStorage.removeItem('worklog_current_organization');
+    if (error) throw error;
+  };
+
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) throw error;
+  };
+
+  const signOut = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
+  };
+
+  const updateProfile = async (name: string, avatarUrl?: string) => {
+    if (!authState.user) return;
+
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({
+        name,
+        avatar_url: avatarUrl,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', authState.user.id);
+
+    if (error) throw error;
+
+    setAuthState(prev => ({
+      ...prev,
+      user: prev.user ? { ...prev.user, name, avatar_url: avatarUrl } : null,
+    }));
   };
 
   const setCurrentOrganization = (org: Organization) => {
@@ -100,32 +177,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshOrganizations = async () => {
     if (!authState.user) return;
 
-    try {
-      const response = await api.post<{
-        user: User;
-        organizations: Organization[];
-        needs_organization_selection: boolean;
-      }>('/auth/login', {
-        email: authState.user.email,
-        name: authState.user.name,
-        avatar_url: authState.user.avatar_url,
-      });
+    const { data: memberships } = await supabase
+      .from('organization_members')
+      .select(`
+        role,
+        status,
+        organizations (
+          id,
+          name,
+          slug
+        )
+      `)
+      .eq('user_id', authState.user.id)
+      .eq('status', 'active');
 
-      setAuthState(prev => ({
-        ...prev,
-        organizations: response.organizations,
-      }));
+    const organizations: Organization[] = memberships?.map(m => ({
+      id: m.organizations.id,
+      name: m.organizations.name,
+      slug: m.organizations.slug,
+      role: m.role,
+      status: m.status,
+    })) || [];
 
-      localStorage.setItem('worklog_organizations', JSON.stringify(response.organizations));
-    } catch (error) {
-      console.error('Failed to refresh organizations:', error);
-    }
+    setAuthState(prev => ({ ...prev, organizations }));
   };
 
   const contextValue: AuthContextType = {
     ...authState,
-    login,
-    logout,
+    signUp,
+    signIn,
+    signOut,
+    updateProfile,
     setCurrentOrganization,
     refreshOrganizations,
   };

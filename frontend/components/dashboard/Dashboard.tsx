@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Clock, TrendingUp, Calendar, Target } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { api } from '../../utils/api';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { TimeTrackingSection } from './TimeTrackingSection';
 import { StatsCards } from './StatsCards';
@@ -16,23 +16,87 @@ export function Dashboard() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (currentOrganization) {
+    if (currentOrganization && user) {
       loadData();
     }
-  }, [currentOrganization]);
+  }, [currentOrganization, user]);
 
   const loadData = async () => {
-    if (!currentOrganization) return;
+    if (!currentOrganization || !user) return;
 
     setLoading(true);
     try {
-      const [projectsResponse, timeEntriesResponse] = await Promise.all([
-        api.get<{ projects: Project[] }>(`/organizations/${currentOrganization.id}/projects`),
-        api.get<{ time_entries: TimeEntry[] }>(`/organizations/${currentOrganization.id}/time-entries?user_id=${user?.id}`)
-      ]);
+      // Load projects
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select(`
+          id,
+          name,
+          description,
+          is_archived,
+          created_at,
+          user_profiles!projects_created_by_fkey (
+            name
+          )
+        `)
+        .eq('organization_id', currentOrganization.id)
+        .order('is_archived', { ascending: true })
+        .order('created_at', { ascending: false });
 
-      setProjects(projectsResponse.projects);
-      setTimeEntries(timeEntriesResponse.time_entries);
+      if (projectsError) throw projectsError;
+
+      const formattedProjects: Project[] = projectsData.map(project => ({
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        is_archived: project.is_archived,
+        created_by: project.user_profiles.name,
+        created_at: project.created_at,
+      }));
+
+      // Load user's time entries
+      const { data: timeEntriesData, error: timeEntriesError } = await supabase
+        .from('time_entries')
+        .select(`
+          id,
+          project_id,
+          user_id,
+          date,
+          task,
+          hours,
+          created_at,
+          updated_at,
+          projects (
+            name
+          ),
+          user_profiles (
+            name,
+            email
+          )
+        `)
+        .eq('organization_id', currentOrganization.id)
+        .eq('user_id', user.id)
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (timeEntriesError) throw timeEntriesError;
+
+      const formattedTimeEntries: TimeEntry[] = timeEntriesData.map(entry => ({
+        id: entry.id,
+        project_id: entry.project_id,
+        project_name: entry.projects.name,
+        user_id: entry.user_id,
+        user_name: entry.user_profiles.name,
+        user_email: entry.user_profiles.email,
+        date: entry.date,
+        task: entry.task,
+        hours: entry.hours,
+        created_at: entry.created_at,
+        updated_at: entry.updated_at,
+      }));
+
+      setProjects(formattedProjects);
+      setTimeEntries(formattedTimeEntries);
     } catch (error) {
       console.error('Failed to load data:', error);
       toast({
@@ -54,16 +118,52 @@ export function Dashboard() {
     if (!currentOrganization || !user) return;
 
     try {
-      const response = await api.post<{ time_entry: any }>(`/organizations/${currentOrganization.id}/time-entries`, {
-        ...entry,
-        user_id: user.id,
-      });
+      const { data, error } = await supabase
+        .from('time_entries')
+        .insert({
+          organization_id: currentOrganization.id,
+          project_id: entry.project_id,
+          user_id: user.id,
+          date: entry.date,
+          task: entry.task,
+          hours: entry.hours,
+        })
+        .select(`
+          id,
+          project_id,
+          user_id,
+          date,
+          task,
+          hours,
+          created_at,
+          updated_at,
+          projects (
+            name
+          ),
+          user_profiles (
+            name,
+            email
+          )
+        `)
+        .single();
 
-      // Reload time entries to get the full data with project and user info
-      const timeEntriesResponse = await api.get<{ time_entries: TimeEntry[] }>(
-        `/organizations/${currentOrganization.id}/time-entries?user_id=${user.id}`
-      );
-      setTimeEntries(timeEntriesResponse.time_entries);
+      if (error) throw error;
+
+      const newEntry: TimeEntry = {
+        id: data.id,
+        project_id: data.project_id,
+        project_name: data.projects.name,
+        user_id: data.user_id,
+        user_name: data.user_profiles.name,
+        user_email: data.user_profiles.email,
+        date: data.date,
+        task: data.task,
+        hours: data.hours,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+      };
+
+      setTimeEntries(prev => [newEntry, ...prev]);
 
       toast({
         title: "Success",
@@ -84,16 +184,22 @@ export function Dashboard() {
     task?: string;
     hours?: number;
   }) => {
-    if (!currentOrganization) return;
-
     try {
-      await api.put(`/organizations/${currentOrganization.id}/time-entries/${entryId}`, updates);
+      const { error } = await supabase
+        .from('time_entries')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', entryId);
 
-      // Reload time entries
-      const timeEntriesResponse = await api.get<{ time_entries: TimeEntry[] }>(
-        `/organizations/${currentOrganization.id}/time-entries?user_id=${user?.id}`
-      );
-      setTimeEntries(timeEntriesResponse.time_entries);
+      if (error) throw error;
+
+      setTimeEntries(prev => prev.map(entry => 
+        entry.id === entryId 
+          ? { ...entry, ...updates, updated_at: new Date().toISOString() }
+          : entry
+      ));
 
       toast({
         title: "Success",
@@ -110,10 +216,13 @@ export function Dashboard() {
   };
 
   const handleDeleteTimeEntry = async (entryId: string) => {
-    if (!currentOrganization) return;
-
     try {
-      await api.delete(`/organizations/${currentOrganization.id}/time-entries/${entryId}`);
+      const { error } = await supabase
+        .from('time_entries')
+        .delete()
+        .eq('id', entryId);
+
+      if (error) throw error;
 
       setTimeEntries(prev => prev.filter(entry => entry.id !== entryId));
 

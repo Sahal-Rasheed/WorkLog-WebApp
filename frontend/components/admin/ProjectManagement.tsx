@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Archive, CheckCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { api } from '../../utils/api';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import type { Project } from '../../types';
 
@@ -39,13 +39,38 @@ export function ProjectManagement({ projects, onProjectCreated, loading }: Proje
 
     setCreating(true);
     try {
-      const response = await api.post<{ project: Project }>(`/organizations/${currentOrganization.id}/projects`, {
-        name: newProject.name.trim(),
-        description: newProject.description.trim() || undefined,
-        created_by: user.id,
-      });
+      const { data, error } = await supabase
+        .from('projects')
+        .insert({
+          organization_id: currentOrganization.id,
+          name: newProject.name.trim(),
+          description: newProject.description.trim() || null,
+          created_by: user.id,
+        })
+        .select(`
+          id,
+          name,
+          description,
+          is_archived,
+          created_at,
+          user_profiles!projects_created_by_fkey (
+            name
+          )
+        `)
+        .single();
 
-      onProjectCreated(response.project);
+      if (error) throw error;
+
+      const project: Project = {
+        id: data.id,
+        name: data.name,
+        description: data.description,
+        is_archived: data.is_archived,
+        created_by: data.user_profiles.name,
+        created_at: data.created_at,
+      };
+
+      onProjectCreated(project);
       setNewProject({ name: '', description: '' });
       setShowDialog(false);
       toast({

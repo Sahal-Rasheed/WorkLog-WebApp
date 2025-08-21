@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Building2, Users, FolderPlus, CheckCircle, Clock, BarChart3 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { api } from '../../utils/api';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { ProjectManagement } from './ProjectManagement';
 import { UserManagement } from './UserManagement';
@@ -29,15 +29,112 @@ export function AdminPanel() {
 
     setLoading(true);
     try {
-      const [projectsResponse, membersResponse, timeEntriesResponse] = await Promise.all([
-        api.get<{ projects: Project[] }>(`/organizations/${currentOrganization.id}/projects`),
-        api.get<{ members: OrganizationMember[] }>(`/organizations/${currentOrganization.id}/members`),
-        api.get<{ time_entries: TimeEntry[] }>(`/organizations/${currentOrganization.id}/time-entries`)
-      ]);
+      // Load projects
+      const { data: projectsData, error: projectsError } = await supabase
+        .from('projects')
+        .select(`
+          id,
+          name,
+          description,
+          is_archived,
+          created_at,
+          user_profiles!projects_created_by_fkey (
+            name
+          )
+        `)
+        .eq('organization_id', currentOrganization.id)
+        .order('is_archived', { ascending: true })
+        .order('created_at', { ascending: false });
 
-      setProjects(projectsResponse.projects);
-      setMembers(membersResponse.members);
-      setTimeEntries(timeEntriesResponse.time_entries);
+      if (projectsError) throw projectsError;
+
+      // Load members
+      const { data: membersData, error: membersError } = await supabase
+        .from('organization_members')
+        .select(`
+          id,
+          user_id,
+          role,
+          status,
+          joined_at,
+          user_profiles (
+            email,
+            name,
+            avatar_url
+          ),
+          invited_by:user_profiles!organization_members_invited_by_fkey (
+            name
+          )
+        `)
+        .eq('organization_id', currentOrganization.id)
+        .order('created_at', { ascending: true });
+
+      if (membersError) throw membersError;
+
+      // Load time entries
+      const { data: timeEntriesData, error: timeEntriesError } = await supabase
+        .from('time_entries')
+        .select(`
+          id,
+          project_id,
+          user_id,
+          date,
+          task,
+          hours,
+          created_at,
+          updated_at,
+          projects (
+            name
+          ),
+          user_profiles (
+            name,
+            email
+          )
+        `)
+        .eq('organization_id', currentOrganization.id)
+        .order('date', { ascending: false });
+
+      if (timeEntriesError) throw timeEntriesError;
+
+      // Format data
+      const formattedProjects: Project[] = projectsData.map(project => ({
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        is_archived: project.is_archived,
+        created_by: project.user_profiles.name,
+        created_at: project.created_at,
+      }));
+
+      const formattedMembers: OrganizationMember[] = membersData.map(member => ({
+        id: member.id,
+        user_id: member.user_id,
+        email: member.user_profiles.email,
+        name: member.user_profiles.name,
+        avatar_url: member.user_profiles.avatar_url,
+        role: member.role,
+        status: member.status,
+        joined_at: member.joined_at,
+        invited_by_name: member.invited_by?.name,
+      }));
+
+      const formattedTimeEntries: TimeEntry[] = timeEntriesData.map(entry => ({
+        id: entry.id,
+        project_id: entry.project_id,
+        project_name: entry.projects.name,
+        user_id: entry.user_id,
+        user_name: entry.user_profiles.name,
+        user_email: entry.user_profiles.email,
+        date: entry.date,
+        task: entry.task,
+        hours: entry.hours,
+        created_at: entry.created_at,
+        updated_at: entry.updated_at,
+      }));
+
+      setProjects(formattedProjects);
+      setMembers(formattedMembers);
+      setTimeEntries(formattedTimeEntries);
     } catch (error) {
       console.error('Failed to load admin data:', error);
       toast({

@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Check, Clock, Mail } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
-import { api } from '../../utils/api';
+import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { validateEmail } from '../../utils/validation';
 import type { OrganizationMember } from '../../types';
@@ -51,11 +51,23 @@ export function UserManagement({ members, onMemberApproved, onDataRefresh, loadi
 
     setInviting(true);
     try {
-      await api.post(`/organizations/${currentOrganization.id}/invite`, {
-        email: newUser.email.trim(),
-        role: newUser.role,
-        invited_by: user.id,
-      });
+      // Generate invitation token
+      const token = crypto.randomUUID();
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+      const { error } = await supabase
+        .from('invitations')
+        .insert({
+          organization_id: currentOrganization.id,
+          email: newUser.email.trim(),
+          role: newUser.role as 'admin' | 'member',
+          invited_by: user.id,
+          token,
+          expires_at: expiresAt.toISOString(),
+        });
+
+      if (error) throw error;
 
       setNewUser({ email: '', role: 'member' });
       setShowDialog(false);
@@ -80,7 +92,19 @@ export function UserManagement({ members, onMemberApproved, onDataRefresh, loadi
 
     setApprovingMember(memberId);
     try {
-      await api.post(`/organizations/${currentOrganization.id}/members/${memberId}/approve`);
+      const { error } = await supabase
+        .from('organization_members')
+        .update({
+          status: 'active',
+          joined_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', memberId)
+        .eq('organization_id', currentOrganization.id)
+        .eq('status', 'pending');
+
+      if (error) throw error;
+
       onMemberApproved(memberId);
       toast({
         title: "Member Approved",

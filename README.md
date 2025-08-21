@@ -1,9 +1,10 @@
 # Worklog - Modern Time Tracking Application
 
-A production-ready worklog application built with React, TypeScript, and Supabase backend. Features organization management, team collaboration, and comprehensive time tracking capabilities.
+A production-ready worklog application built with React, TypeScript, and Supabase. Features organization management, team collaboration, and comprehensive time tracking capabilities.
 
 ## Features
 
+- **User Authentication**: Secure sign-up/sign-in with Supabase Auth
 - **Organization Management**: Create or join organizations with role-based access control
 - **Team Collaboration**: Invite team members, manage permissions, and approve join requests
 - **Time Tracking**: Intuitive time entry with project-based organization
@@ -13,19 +14,18 @@ A production-ready worklog application built with React, TypeScript, and Supabas
 
 ## Architecture
 
-### Backend (Node.js + Supabase)
-- **Express.js API**: RESTful API with proper CORS handling
-- **Supabase Database**: PostgreSQL with comprehensive schema for organizations, users, projects, and time entries
-- **Authentication**: Simple email/name based authentication
-- **Organizations Service**: Organization creation, joining, and member management
-- **Projects Service**: Project management within organizations
-- **Time Entries Service**: CRUD operations for time tracking
-
 ### Frontend (React + TypeScript)
 - **Modern React**: Hooks-based architecture with TypeScript
 - **Tailwind CSS**: Utility-first styling with shadcn/ui components
+- **Supabase Client**: Direct integration with Supabase for real-time data
 - **Responsive Design**: Mobile-first approach with consistent UX
-- **State Management**: Context-based auth and organization state
+
+### Backend (Supabase)
+- **PostgreSQL Database**: Robust relational database with Row Level Security
+- **Authentication**: Built-in user management and session handling
+- **Real-time Subscriptions**: Live updates across clients
+- **Edge Functions**: Serverless functions for complex operations
+- **Storage**: File uploads and management
 
 ## Getting Started
 
@@ -39,22 +39,23 @@ A production-ready worklog application built with React, TypeScript, and Supabas
 1. **Create a Supabase project**:
    - Go to [supabase.com](https://supabase.com)
    - Create a new project
-   - Note down your project URL and API keys
+   - Note down your project URL and anon key
 
 2. **Set up the database**:
    - Go to the SQL Editor in your Supabase dashboard
-   - Copy and paste the contents of `backend/supabase-schema.sql`
-   - Run the SQL to create all tables and indexes
+   - Copy and paste the contents of `supabase-setup.sql`
+   - Run the SQL to create all tables, functions, and policies
 
-3. **Configure Row Level Security**:
-   - The schema includes RLS policies for the service role
-   - This allows the backend to access all data securely
+3. **Configure Authentication**:
+   - Go to Authentication > Settings in your Supabase dashboard
+   - Enable email authentication
+   - Configure your site URL (e.g., `http://localhost:5173` for development)
 
-### Backend Setup
+### Frontend Setup
 
 1. **Install dependencies**:
 ```bash
-cd backend
+cd frontend
 npm install
 ```
 
@@ -65,48 +66,65 @@ cp .env.example .env
 
 Edit `.env` with your Supabase credentials:
 ```env
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-PORT=4000
-NODE_ENV=development
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-3. **Run the backend**:
+3. **Run the application**:
 ```bash
 npm run dev
 ```
 
-The backend will be available at `http://localhost:4000`
+The application will be available at `http://localhost:5173`
 
-### Frontend Setup
+## Supabase Configuration Checklist
 
-1. **Install dependencies**:
-```bash
-cd frontend
-npm install
-```
+### 1. Database Setup
+- [x] Run the `supabase-setup.sql` script in SQL Editor
+- [x] Verify all tables are created with proper relationships
+- [x] Check that Row Level Security policies are enabled
+- [x] Confirm triggers and functions are working
 
-2. **Configure API endpoint**:
-Update `frontend/config.ts` if needed (defaults to localhost:4000):
-```typescript
-export const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://your-api-domain.com' 
-  : 'http://localhost:4000';
-```
+### 2. Authentication Setup
+- [x] Enable Email authentication in Auth settings
+- [x] Set site URL to your domain (localhost for development)
+- [x] Configure email templates (optional)
+- [x] Set up redirect URLs for production
 
-3. **Run the frontend**:
-```bash
-npm run dev
-```
+### 3. API Settings
+- [x] Note your Project URL from Settings > API
+- [x] Copy your anon/public key from Settings > API
+- [x] Ensure RLS is enabled on all tables
+- [x] Test API access with the anon key
 
-The frontend will be available at `http://localhost:5173`
+### 4. Security Configuration
+- [x] Review RLS policies for each table
+- [x] Test that users can only access their organization's data
+- [x] Verify admin-only operations are properly protected
+- [x] Check that sensitive data is not exposed
+
+## Database Schema
+
+### Core Tables
+- **organizations**: Organization details and settings
+- **user_profiles**: Extended user information (linked to auth.users)
+- **organization_members**: User-organization relationships with roles
+- **projects**: Project information within organizations
+- **time_entries**: Individual time tracking records
+- **invitations**: Email invitations for joining organizations
+
+### Key Features
+- **Row Level Security**: Complete data isolation between organizations
+- **Role-based Access**: Admin and member roles with appropriate permissions
+- **Invitation System**: Secure token-based invitations with expiration
+- **Automatic Profile Creation**: Triggers create user profiles on signup
+- **Audit Trail**: Comprehensive tracking of user actions
 
 ## Usage Guide
 
 ### First Time Setup
 
-1. **Sign Up**: Enter your email and name to create an account
+1. **Sign Up**: Create an account with email and password
 2. **Organization Choice**: 
    - Create a new organization if you're starting fresh
    - Join an existing organization if you have an invitation
@@ -128,96 +146,42 @@ The frontend will be available at `http://localhost:5173`
 2. **Dashboard**: View personal statistics and time summaries
 3. **Project Selection**: Work across multiple projects within your organization
 
-## Database Schema
-
-### Core Tables
-- **organizations**: Organization details and settings
-- **users**: User profiles and authentication data
-- **organization_members**: User-organization relationships with roles
-- **projects**: Project information within organizations
-- **time_entries**: Individual time tracking records
-- **invitations**: Email invitations for joining organizations
-
-### Key Features
-- **Role-based Access**: Admin and member roles with appropriate permissions
-- **Invitation System**: Secure token-based invitations with expiration
-- **Data Isolation**: Complete separation between organizations
-- **Audit Trail**: Comprehensive tracking of user actions
-
-## API Endpoints
-
-### Authentication
-- `POST /auth/login` - User login/registration
-- `POST /auth/check-email` - Check for existing accounts and invitations
-
-### Organizations
-- `POST /organizations` - Create new organization
-- `POST /organizations/join` - Request to join organization
-- `POST /organizations/accept-invitation` - Accept invitation
-- `GET /organizations/:id/members` - Get organization members
-- `POST /organizations/:id/members/:memberId/approve` - Approve member
-- `POST /organizations/:id/invite` - Invite user
-
-### Projects
-- `GET /organizations/:id/projects` - List projects
-- `POST /organizations/:id/projects` - Create project
-
-### Time Entries
-- `GET /organizations/:id/time-entries` - List time entries (with filters)
-- `POST /organizations/:id/time-entries` - Create time entry
-- `PUT /organizations/:id/time-entries/:entryId` - Update time entry
-- `DELETE /organizations/:id/time-entries/:entryId` - Delete time entry
-
 ## Security Features
 
-- **Data Isolation**: Complete separation between organizations
+- **Row Level Security**: Complete data isolation between organizations
 - **Role-based Access**: Granular permissions for different user types
 - **Secure Invitations**: Token-based invitations with expiration
 - **Input Validation**: Comprehensive validation on all inputs
 - **SQL Injection Protection**: Parameterized queries throughout
-- **CORS Protection**: Proper CORS configuration for frontend access
+- **Authentication**: Secure JWT-based authentication via Supabase
 
 ## Deployment
-
-### Backend Deployment
-
-#### Railway/Render/Heroku
-1. Connect your repository
-2. Set environment variables from your `.env` file
-3. Deploy with default Node.js settings
-
-#### Manual VPS
-1. Install Node.js and PM2
-2. Clone repository and install dependencies
-3. Set environment variables
-4. Start with PM2: `pm2 start server.js`
 
 ### Frontend Deployment
 
 #### Netlify
 1. Build the application: `npm run build`
 2. Deploy the `dist` folder to Netlify
-3. Update `API_BASE_URL` in config for production
+3. Set environment variables in Netlify dashboard
+4. Update Supabase site URL to your production domain
 
 #### Vercel
 1. Connect your repository to Vercel
-2. Deploy with default settings
-3. Update environment variables if needed
+2. Set environment variables in Vercel dashboard
+3. Deploy with default settings
+4. Update Supabase site URL to your production domain
+
+### Supabase Configuration for Production
+
+1. **Update Site URL**: Set your production domain in Auth settings
+2. **Configure Email Templates**: Customize email templates for your brand
+3. **Set up Custom Domain**: Optional custom domain for Supabase
+4. **Review Security Settings**: Ensure all security policies are production-ready
 
 ## Development
 
 ### Project Structure
 ```
-backend/
-├── config/            # Supabase configuration
-├── routes/            # API route handlers
-│   ├── auth.js       # Authentication routes
-│   ├── organizations.js # Organization management
-│   ├── projects.js   # Project management
-│   └── timeEntries.js # Time tracking
-├── server.js         # Express server setup
-└── supabase-schema.sql # Database schema
-
 frontend/
 ├── components/        # React components
 │   ├── auth/         # Authentication components
@@ -225,17 +189,20 @@ frontend/
 │   ├── dashboard/    # Dashboard components
 │   └── layout/       # Layout components
 ├── hooks/            # Custom React hooks
+├── lib/              # Supabase client and utilities
 ├── utils/            # Utility functions
 └── types.ts          # TypeScript definitions
+
+supabase-setup.sql    # Database schema and setup
 ```
 
 ### Key Technologies
-- **Backend**: Node.js, Express.js, Supabase, PostgreSQL
 - **Frontend**: React 18, TypeScript, Vite, Tailwind CSS
 - **UI Components**: shadcn/ui
 - **Icons**: Lucide React
 - **Database**: Supabase (PostgreSQL)
-- **Validation**: Custom validation utilities
+- **Authentication**: Supabase Auth
+- **Real-time**: Supabase Realtime
 
 ## Contributing
 
@@ -254,6 +221,7 @@ MIT License - see LICENSE file for details
 For support and questions:
 - Check the documentation above
 - Review the code comments for implementation details
+- Check Supabase documentation for database/auth issues
 - Open an issue for bugs or feature requests
 
 ---
