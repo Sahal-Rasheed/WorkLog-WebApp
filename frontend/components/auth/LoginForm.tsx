@@ -33,8 +33,9 @@ export function LoginForm() {
 
   // Check for environment variables on component mount
   useEffect(() => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+	const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ffkcpyyxvfxjsfmmylfz.supabase.co';
+	const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZma2NweXl4dmZ4anNmbW15bGZ6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU3NzU0MjAsImV4cCI6MjA3MTM1MTQyMH0.TXvs2P9ardukGHaNVX3h8RwXW9_lvJ8ym8satFY-sAc';
 
     if (!supabaseUrl || !supabaseAnonKey) {
       setConfigError('Supabase configuration is missing. Please check your environment variables.');
