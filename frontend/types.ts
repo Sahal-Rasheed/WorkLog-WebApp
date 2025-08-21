@@ -75,3 +75,12 @@ export interface ValidationResult {
   isValid: boolean;
   errors: string[];
 }
+
+export interface ImportRow {
+  date: string;
+  project: string;
+  task: string;
+  hours: number;
+  isValid: boolean;
+  errors: string[];
+}

@@ -1,6 +1,6 @@
 # Worklog - Modern Time Tracking Application
 
-A production-ready worklog application built with React, TypeScript, and Encore.ts backend. Features organization management, team collaboration, and comprehensive time tracking capabilities.
+A production-ready worklog application built with React, TypeScript, and Supabase backend. Features organization management, team collaboration, and comprehensive time tracking capabilities.
 
 ## Features
 
@@ -13,9 +13,10 @@ A production-ready worklog application built with React, TypeScript, and Encore.
 
 ## Architecture
 
-### Backend (Encore.ts)
-- **Database Service**: PostgreSQL with comprehensive schema for organizations, users, projects, and time entries
-- **Auth Service**: User authentication and organization management
+### Backend (Node.js + Supabase)
+- **Express.js API**: RESTful API with proper CORS handling
+- **Supabase Database**: PostgreSQL with comprehensive schema for organizations, users, projects, and time entries
+- **Authentication**: Simple email/name based authentication
 - **Organizations Service**: Organization creation, joining, and member management
 - **Projects Service**: Project management within organizations
 - **Time Entries Service**: CRUD operations for time tracking
@@ -30,28 +31,50 @@ A production-ready worklog application built with React, TypeScript, and Encore.
 
 ### Prerequisites
 - Node.js 18+ 
-- PostgreSQL database
-- Encore CLI
+- Supabase account
+- npm or yarn
+
+### Supabase Setup
+
+1. **Create a Supabase project**:
+   - Go to [supabase.com](https://supabase.com)
+   - Create a new project
+   - Note down your project URL and API keys
+
+2. **Set up the database**:
+   - Go to the SQL Editor in your Supabase dashboard
+   - Copy and paste the contents of `backend/supabase-schema.sql`
+   - Run the SQL to create all tables and indexes
+
+3. **Configure Row Level Security**:
+   - The schema includes RLS policies for the service role
+   - This allows the backend to access all data securely
 
 ### Backend Setup
 
-1. **Install Encore CLI**:
+1. **Install dependencies**:
 ```bash
-curl -L https://encore.dev/install.sh | bash
+cd backend
+npm install
 ```
 
-2. **Initialize the backend**:
+2. **Environment configuration**:
 ```bash
-encore app create worklog-backend
-cd worklog-backend
+cp .env.example .env
 ```
 
-3. **Set up the database**:
-The database will be automatically created when you run the application. The migration files define the complete schema.
+Edit `.env` with your Supabase credentials:
+```env
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+PORT=4000
+NODE_ENV=development
+```
 
-4. **Run the backend**:
+3. **Run the backend**:
 ```bash
-encore run
+npm run dev
 ```
 
 The backend will be available at `http://localhost:4000`
@@ -65,10 +88,10 @@ npm install
 ```
 
 2. **Configure API endpoint**:
-Update `frontend/config.ts` with your backend URL:
+Update `frontend/config.ts` if needed (defaults to localhost:4000):
 ```typescript
 export const API_BASE_URL = process.env.NODE_ENV === 'production' 
-  ? 'https://your-app.encr.app' 
+  ? 'https://your-api-domain.com' 
   : 'http://localhost:4000';
 ```
 
@@ -152,36 +175,48 @@ The frontend will be available at `http://localhost:5173`
 - **Secure Invitations**: Token-based invitations with expiration
 - **Input Validation**: Comprehensive validation on all inputs
 - **SQL Injection Protection**: Parameterized queries throughout
+- **CORS Protection**: Proper CORS configuration for frontend access
 
 ## Deployment
 
-### Backend Deployment (Encore.ts)
-```bash
-encore deploy --env production
-```
+### Backend Deployment
+
+#### Railway/Render/Heroku
+1. Connect your repository
+2. Set environment variables from your `.env` file
+3. Deploy with default Node.js settings
+
+#### Manual VPS
+1. Install Node.js and PM2
+2. Clone repository and install dependencies
+3. Set environment variables
+4. Start with PM2: `pm2 start server.js`
 
 ### Frontend Deployment
 
 #### Netlify
 1. Build the application: `npm run build`
 2. Deploy the `dist` folder to Netlify
-3. Update `API_BASE_URL` in config
+3. Update `API_BASE_URL` in config for production
 
 #### Vercel
 1. Connect your repository to Vercel
 2. Deploy with default settings
-3. Update environment variables
+3. Update environment variables if needed
 
 ## Development
 
 ### Project Structure
 ```
 backend/
-├── auth/              # Authentication service
-├── database/          # Database service and migrations
-├── organizations/     # Organization management
-├── projects/          # Project management
-└── time-entries/      # Time tracking
+├── config/            # Supabase configuration
+├── routes/            # API route handlers
+│   ├── auth.js       # Authentication routes
+│   ├── organizations.js # Organization management
+│   ├── projects.js   # Project management
+│   └── timeEntries.js # Time tracking
+├── server.js         # Express server setup
+└── supabase-schema.sql # Database schema
 
 frontend/
 ├── components/        # React components
@@ -195,10 +230,11 @@ frontend/
 ```
 
 ### Key Technologies
-- **Backend**: Encore.ts, PostgreSQL, TypeScript
+- **Backend**: Node.js, Express.js, Supabase, PostgreSQL
 - **Frontend**: React 18, TypeScript, Vite, Tailwind CSS
 - **UI Components**: shadcn/ui
 - **Icons**: Lucide React
+- **Database**: Supabase (PostgreSQL)
 - **Validation**: Custom validation utilities
 
 ## Contributing
@@ -222,4 +258,4 @@ For support and questions:
 
 ---
 
-Built with ❤️ using Encore.ts and React
+Built with ❤️ using Supabase and React

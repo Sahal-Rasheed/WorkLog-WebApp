@@ -12,14 +12,14 @@ interface WorklogTableProps {
   selectedProject: Project;
   selectedMonth: string;
   userEmail: string;
-  onAddEntry: (entry: Omit<TimeEntry, 'entry_id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  onAddEntry: (entry: Omit<TimeEntry, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
   onUpdateEntry: (entryId: string, updates: Partial<TimeEntry>) => Promise<void>;
   onDeleteEntry: (entryId: string) => Promise<void>;
   loading: boolean;
 }
 
 interface EditingEntry {
-  entry_id: string;
+  id: string;
   date: string;
   task: string;
   hours: string;
@@ -85,10 +85,13 @@ export function WorklogTable({
     try {
       await onAddEntry({
         date: newEntry.date,
-        project_id: selectedProject.project_id,
+        project_id: selectedProject.id,
+        project_name: selectedProject.name,
+        user_id: crypto.randomUUID(),
+        user_name: 'Current User',
+        user_email: userEmail,
         task: newEntry.task,
-        hours: parseFloat(newEntry.hours),
-        user_email: userEmail
+        hours: parseFloat(newEntry.hours)
       });
 
       setNewEntry({ date: '', task: '', hours: '' });
@@ -109,7 +112,7 @@ export function WorklogTable({
 
   const handleEdit = (entry: TimeEntry) => {
     setEditingEntry({
-      entry_id: entry.entry_id,
+      id: entry.id,
       date: entry.date,
       task: entry.task,
       hours: entry.hours.toString()
@@ -139,7 +142,7 @@ export function WorklogTable({
     }
 
     try {
-      await onUpdateEntry(editingEntry.entry_id, {
+      await onUpdateEntry(editingEntry.id, {
         date: editingEntry.date,
         task: editingEntry.task,
         hours: parseFloat(editingEntry.hours),
@@ -268,8 +271,8 @@ export function WorklogTable({
             </TableRow>
           ) : (
             sortedEntries.map((entry) => (
-              <TableRow key={entry.entry_id}>
-                {editingEntry?.entry_id === entry.entry_id ? (
+              <TableRow key={entry.id}>
+                {editingEntry?.id === entry.id ? (
                   <>
                     <TableCell>
                       <Input
@@ -328,7 +331,7 @@ export function WorklogTable({
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleDelete(entry.entry_id)}
+                          onClick={() => handleDelete(entry.id)}
                           disabled={loading}
                         >
                           <Trash2 className="w-4 h-4" />

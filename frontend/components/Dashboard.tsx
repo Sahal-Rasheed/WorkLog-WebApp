@@ -12,10 +12,10 @@ interface DashboardProps {
   timeEntries: TimeEntry[];
   userEmail: string;
   userName: string;
-  onAddEntry: (entry: Omit<TimeEntry, 'entry_id' | 'created_at' | 'updated_at'>) => Promise<void>;
+  onAddEntry: (entry: Omit<TimeEntry, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
   onUpdateEntry: (entryId: string, updates: Partial<TimeEntry>) => Promise<void>;
   onDeleteEntry: (entryId: string) => Promise<void>;
-  onBatchAddEntries: (entries: Omit<TimeEntry, 'entry_id' | 'created_at' | 'updated_at'>[]) => Promise<void>;
+  onBatchAddEntries: (entries: Omit<TimeEntry, 'id' | 'created_at' | 'updated_at'>[]) => Promise<void>;
   onLoadTimeEntries: (projectId: string, month: string) => Promise<void>;
   loading: boolean;
 }
@@ -51,7 +51,7 @@ export function Dashboard({
   // Load time entries when project or month changes
   useEffect(() => {
     if (selectedProject) {
-      onLoadTimeEntries(selectedProject.project_id, selectedMonth);
+      onLoadTimeEntries(selectedProject.id, selectedMonth);
     }
   }, [selectedProject, selectedMonth, onLoadTimeEntries]);
 

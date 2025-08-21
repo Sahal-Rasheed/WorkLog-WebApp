@@ -11,14 +11,13 @@ import { useToast } from '@/components/ui/use-toast';
 import * as XLSX from 'xlsx';
 import type { Project, TimeEntry, ImportRow } from '../types';
 import { validateTimeEntry } from '../utils/validation';
-import { generateUUID } from '../utils/uuid';
 
 interface ImportExportProps {
   projects: Project[];
   selectedProject: Project | null;
   selectedMonth: string;
   timeEntries: TimeEntry[];
-  onImport: (entries: Omit<TimeEntry, 'entry_id' | 'created_at' | 'updated_at'>[]) => Promise<void>;
+  onImport: (entries: Omit<TimeEntry, 'id' | 'created_at' | 'updated_at'>[]) => Promise<void>;
   userEmail: string;
 }
 
@@ -93,7 +92,7 @@ export function ImportExport({
           // Check if project exists
           const projectExists = projects.some(p => 
             p.name.toLowerCase() === importRow.project.toLowerCase() ||
-            p.project_id.toLowerCase() === importRow.project.toLowerCase()
+            p.id.toLowerCase() === importRow.project.toLowerCase()
           );
 
           if (!projectExists && importRow.project) {
@@ -140,19 +139,22 @@ export function ImportExport({
     }
 
     try {
-      const entries: Omit<TimeEntry, 'entry_id' | 'created_at' | 'updated_at'>[] = rowsToImport.map(row => {
+      const entries: Omit<TimeEntry, 'id' | 'created_at' | 'updated_at'>[] = rowsToImport.map(row => {
         // Find project by name or ID
         const project = projects.find(p => 
           p.name.toLowerCase() === row.project.toLowerCase() ||
-          p.project_id.toLowerCase() === row.project.toLowerCase()
+          p.id.toLowerCase() === row.project.toLowerCase()
         ) || projects[0]; // Fallback to first project
 
         return {
           date: row.date,
-          project_id: project.project_id,
+          project_id: project.id,
+          project_name: project.name,
+          user_id: crypto.randomUUID(),
+          user_name: 'Imported User',
+          user_email: userEmail,
           task: row.task,
-          hours: row.hours,
-          user_email: userEmail
+          hours: row.hours
         };
       });
 

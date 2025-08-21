@@ -10,7 +10,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Plus, Users, FolderPlus, Archive, CheckCircle, Clock, Building2 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import type { Project, User } from '../types';
-import { generateUUID } from '../utils/uuid';
 
 interface AdminPanelProps {
   projects: Project[];
@@ -50,8 +49,9 @@ export function AdminPanel({
 
     try {
       await onAddProject({
-        project_id: newProject.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+        id: newProject.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
         name: newProject.name.trim(),
+        description: newProject.description,
         is_archived: false,
         created_by: 'admin'
       });
@@ -85,9 +85,9 @@ export function AdminPanel({
 
     try {
       await onAddUser({
+        id: crypto.randomUUID(),
         email: newUser.email.trim(),
-        name: newUser.name.trim(),
-        role: newUser.role
+        name: newUser.name.trim()
       });
 
       setNewUser({ email: '', name: '', role: 'member' });
@@ -108,8 +108,6 @@ export function AdminPanel({
 
   const activeProjects = projects.filter(p => !p.is_archived);
   const archivedProjects = projects.filter(p => p.is_archived);
-  const adminUsers = users.filter(u => u.role === 'admin');
-  const memberUsers = users.filter(u => u.role === 'member');
 
   return (
     <div className="space-y-6">
@@ -150,7 +148,7 @@ export function AdminPanel({
           <CardContent>
             <div className="text-2xl font-bold">{users.length}</div>
             <p className="text-xs text-muted-foreground">
-              {adminUsers.length} admins, {memberUsers.length} members
+              Total team members
             </p>
           </CardContent>
         </Card>
@@ -268,9 +266,9 @@ export function AdminPanel({
                     </TableRow>
                   ) : (
                     projects.map((project) => (
-                      <TableRow key={project.project_id}>
+                      <TableRow key={project.id}>
                         <TableCell className="font-medium">{project.name}</TableCell>
-                        <TableCell className="font-mono text-sm">{project.project_id}</TableCell>
+                        <TableCell className="font-mono text-sm">{project.id}</TableCell>
                         <TableCell>
                           <Badge variant={project.is_archived ? "secondary" : "default"}>
                             {project.is_archived ? (
@@ -344,18 +342,6 @@ export function AdminPanel({
                             required
                           />
                         </div>
-                        <div>
-                          <Label htmlFor="user-role">Role</Label>
-                          <select
-                            id="user-role"
-                            className="w-full p-2 border border-gray-300 rounded-md"
-                            value={newUser.role}
-                            onChange={(e) => setNewUser(prev => ({ ...prev, role: e.target.value }))}
-                          >
-                            <option value="member">Member</option>
-                            <option value="admin">Admin</option>
-                          </select>
-                        </div>
                       </div>
                       <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => setShowUserDialog(false)}>
@@ -376,28 +362,22 @@ export function AdminPanel({
                   <TableRow>
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
-                    <TableHead>Role</TableHead>
                     <TableHead>Joined</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {users.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                      <TableCell colSpan={3} className="text-center text-gray-500 py-8">
                         No users found. Add team members above.
                       </TableCell>
                     </TableRow>
                   ) : (
                     users.map((user) => (
-                      <TableRow key={user.email}>
+                      <TableRow key={user.id}>
                         <TableCell className="font-medium">{user.name}</TableCell>
                         <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          <Badge variant={user.role === 'admin' ? "default" : "secondary"}>
-                            {user.role === 'admin' ? 'Administrator' : 'Member'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>{new Date().toLocaleDateString()}</TableCell>
                       </TableRow>
                     ))
                   )}

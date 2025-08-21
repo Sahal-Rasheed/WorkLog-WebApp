@@ -17,7 +17,7 @@ export function ProjectSelector({ projects, selectedProject, onProjectSelect, lo
     if (value === 'none') {
       onProjectSelect(null);
     } else {
-      const project = projects.find(p => p.project_id === value);
+      const project = projects.find(p => p.id === value);
       onProjectSelect(project || null);
     }
   };
@@ -26,7 +26,7 @@ export function ProjectSelector({ projects, selectedProject, onProjectSelect, lo
     <div className="space-y-2">
       <Label htmlFor="project-select">Project</Label>
       <Select
-        value={selectedProject?.project_id || 'none'}
+        value={selectedProject?.id || 'none'}
         onValueChange={handleValueChange}
         disabled={loading}
       >
@@ -36,7 +36,7 @@ export function ProjectSelector({ projects, selectedProject, onProjectSelect, lo
         <SelectContent>
           <SelectItem value="none">Select a project</SelectItem>
           {activeProjects.map((project) => (
-            <SelectItem key={project.project_id} value={project.project_id}>
+            <SelectItem key={project.id} value={project.id}>
               {project.name}
             </SelectItem>
           ))}
