@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Mail, User, Lock, AlertCircle } from 'lucide-react';
+import { Mail, User, Lock, AlertCircle, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '../../hooks/useAuth';
 import { validateEmail } from '../../utils/validation';
@@ -14,6 +14,7 @@ export function LoginForm() {
   const { signIn, signUp } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [configError, setConfigError] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Sign In Form
@@ -30,9 +31,30 @@ export function LoginForm() {
     name: '',
   });
 
+  // Check for environment variables on component mount
+  useEffect(() => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setConfigError('Supabase configuration is missing. Please check your environment variables.');
+    } else {
+      setConfigError(null);
+    }
+  }, []);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (configError) {
+      toast({
+        title: "Configuration Error",
+        description: configError,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const newErrors: string[] = [];
     
     if (!signInData.email.trim()) {
@@ -66,6 +88,15 @@ export function LoginForm() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (configError) {
+      toast({
+        title: "Configuration Error",
+        description: configError,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const newErrors: string[] = [];
     
     if (!signUpData.email.trim()) {
@@ -121,6 +152,19 @@ export function LoginForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {configError && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              {configError}
+              <br />
+              <span className="text-sm mt-2 block">
+                Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set in your environment variables.
+              </span>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Tabs defaultValue="signin" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="signin">Sign In</TabsTrigger>
@@ -153,7 +197,7 @@ export function LoginForm() {
                     value={signInData.email}
                     onChange={(e) => setSignInData(prev => ({ ...prev, email: e.target.value }))}
                     className="pl-10"
-                    disabled={isLoading}
+                    disabled={isLoading || !!configError}
                   />
                 </div>
               </div>
@@ -169,12 +213,12 @@ export function LoginForm() {
                     value={signInData.password}
                     onChange={(e) => setSignInData(prev => ({ ...prev, password: e.target.value }))}
                     className="pl-10"
-                    disabled={isLoading}
+                    disabled={isLoading || !!configError}
                   />
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading || !!configError}>
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </Button>
             </form>
@@ -206,7 +250,7 @@ export function LoginForm() {
                     value={signUpData.name}
                     onChange={(e) => setSignUpData(prev => ({ ...prev, name: e.target.value }))}
                     className="pl-10"
-                    disabled={isLoading}
+                    disabled={isLoading || !!configError}
                   />
                 </div>
               </div>
@@ -222,7 +266,7 @@ export function LoginForm() {
                     value={signUpData.email}
                     onChange={(e) => setSignUpData(prev => ({ ...prev, email: e.target.value }))}
                     className="pl-10"
-                    disabled={isLoading}
+                    disabled={isLoading || !!configError}
                   />
                 </div>
               </div>
@@ -238,7 +282,7 @@ export function LoginForm() {
                     value={signUpData.password}
                     onChange={(e) => setSignUpData(prev => ({ ...prev, password: e.target.value }))}
                     className="pl-10"
-                    disabled={isLoading}
+                    disabled={isLoading || !!configError}
                   />
                 </div>
               </div>
@@ -254,12 +298,12 @@ export function LoginForm() {
                     value={signUpData.confirmPassword}
                     onChange={(e) => setSignUpData(prev => ({ ...prev, confirmPassword: e.target.value }))}
                     className="pl-10"
-                    disabled={isLoading}
+                    disabled={isLoading || !!configError}
                   />
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading || !!configError}>
                 {isLoading ? 'Creating Account...' : 'Create Account'}
               </Button>
             </form>

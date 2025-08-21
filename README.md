@@ -51,6 +51,24 @@ A production-ready worklog application built with React, TypeScript, and Supabas
    - Enable email authentication
    - Configure your site URL (e.g., `http://localhost:5173` for development)
 
+### Environment Variables
+
+#### For Leap Platform
+Set the following environment variables in the Leap dashboard under "Secrets":
+
+```
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+#### For Local Development
+Create a `frontend/.env` file:
+
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
 ### Frontend Setup
 
 1. **Install dependencies**:
@@ -59,18 +77,7 @@ cd frontend
 npm install
 ```
 
-2. **Environment configuration**:
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your Supabase credentials:
-```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
-
-3. **Run the application**:
+2. **Run the application**:
 ```bash
 npm run dev
 ```
@@ -102,6 +109,33 @@ The application will be available at `http://localhost:5173`
 - [x] Test that users can only access their organization's data
 - [x] Verify admin-only operations are properly protected
 - [x] Check that sensitive data is not exposed
+
+## Environment Variables Setup
+
+### Required Variables
+
+| Variable | Description | Where to find |
+|----------|-------------|---------------|
+| `VITE_SUPABASE_URL` | Your Supabase project URL | Supabase Dashboard > Settings > API |
+| `VITE_SUPABASE_ANON_KEY` | Your Supabase anon/public key | Supabase Dashboard > Settings > API |
+
+### Setting Variables in Leap
+
+1. Go to your Leap project dashboard
+2. Navigate to the "Secrets" or "Environment Variables" section
+3. Add the following variables:
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+4. Save the configuration
+
+### Setting Variables Locally
+
+Create a `.env` file in the `frontend` directory:
+
+```env
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
+```
 
 ## Database Schema
 
@@ -157,7 +191,13 @@ The application will be available at `http://localhost:5173`
 
 ## Deployment
 
-### Frontend Deployment
+### Leap Platform Deployment
+
+1. **Set Environment Variables**: Configure the required Supabase variables in Leap's secrets/environment section
+2. **Deploy**: Use Leap's standard deployment process
+3. **Update Supabase**: Set your production domain in Supabase Auth settings
+
+### Other Platform Deployment
 
 #### Netlify
 1. Build the application: `npm run build`
@@ -177,6 +217,26 @@ The application will be available at `http://localhost:5173`
 2. **Configure Email Templates**: Customize email templates for your brand
 3. **Set up Custom Domain**: Optional custom domain for Supabase
 4. **Review Security Settings**: Ensure all security policies are production-ready
+
+## Troubleshooting
+
+### Common Issues
+
+#### Missing Environment Variables
+- **Error**: "Missing Supabase environment variables"
+- **Solution**: Ensure `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are set in your environment
+- **For Leap**: Add variables to the Secrets section in your project dashboard
+- **For Local**: Create a `.env` file with the required variables
+
+#### Authentication Issues
+- **Error**: Sign-in/sign-up not working
+- **Solution**: Check that email authentication is enabled in Supabase Auth settings
+- **Verify**: Site URL is correctly configured for your domain
+
+#### Database Connection Issues
+- **Error**: Database queries failing
+- **Solution**: Verify RLS policies are correctly configured
+- **Check**: Anon key has proper permissions
 
 ## Development
 
